@@ -1,11 +1,14 @@
 /**************************************************************************//**
- * @file    app_main.cpp
- * @brief   A simple application that sends pulses on a digital port.
+ * @addtogroup SBLIB_EXAMPLES Selfbus library usage examples
+ * @defgroup SBLIB_EXAMPLE_PULSED_BLINK_1 Pulsed blink example
+ * @ingroup SBLIB_EXAMPLES
+ * @brief   Sends pulses on a digital port
+ * @details This example is meant to be a test for the timing of delayMicroseconds().<br/>
+ *          By default PIO0.7 is used, which is the LED on the LPCxpresso board.<br/>
  *
- * By default PIO0.7 is used, which is the LED on the LPCxpresso board.
- * needs BCU1 version of the sblib library.
+ * @{
  *
- * This example is meant to be a test for the timing of delayMicroseconds().
+ * @file   app_main.cpp
  *
  * @author Stefan Taferner <stefan.taferner@gmx.at> Copyright (c) 2015
  * @author Darthyson <darth@maptrack.de> Copyright (c) 2021
@@ -19,28 +22,24 @@
  ---------------------------------------------------------------------------*/
 
 #include <math.h>
-#include <sblib/core.h>
-#include <sblib/eib/sblib_default_objects.h>
+#include <sblib/eibBCU1.h>
 #include <sblib/io_pin_names.h>
 
 
-///< microsecond to start the test
-#define START_MICROSECOND_TO_TEST 0
+#define TEST_MICROSECOND_START 0                        //!< microsecond to start the test
+#define TEST_MICROSECOND_END (MAX_DELAY_MICROSECONDS)   //!< microsecond to end the test
 
-///< microseconds to end the test
-#define END_MICROSECOND_TO_TEST MAX_DELAY_MICROSECONDS
+#define TEST_MILLISECOND_START 0                        //!< millisecond to start the test
+#define TEST_MILLISECOND_END (100000)                   //!< millisecond to end the test
 
-///< threshold 1, microsecond to speed up the test
-#define SPEEDUP_1_MICROSECOND_TO_TEST 100
+#define TEST_SPEEDUP_1 100                              //!< threshold 1, to speed up the test
+#define TEST_SPEEDUP_2 10000                            //!< threshold 2, to speed up the test
 
-///< threshold 2, microsecond to speed up the test
-#define SPEEDUP_2_MICROSECOND_TO_TEST 5000000
+#define TEST_PAUSE 500                                  //!< pause between tests in milliseconds
+#define TEST_COUNT 2                                    //!< number of test cycles
 
-///< Pause between tests in milliseconds
-#define TEST_PAUSE 500
 
 /**
- * @def SET_TESTPIN_HIGH macro to set the test pin high
  * @brief To be as accurate as possible, we directly access the IO pin and do not
  *        use digitalWrite().
  *
@@ -55,7 +54,6 @@
 #define SET_TESTPIN_HIGH port->MASKED_ACCESS[mask] = mask
 
 /**
- * @def SET_TESTPIN_LOW macro to set the test pin low
  * @brief To be as accurate as possible, we directly access the IO pin and do not
  *        use digitalWrite().
  *
@@ -69,8 +67,9 @@
  */
 #define SET_TESTPIN_LOW port->MASKED_ACCESS[mask] = 0
 
-///< SystemCoreClock in MHz
-enum SystemSpeed {mhz12, mhz24, mhz36, mhz48};
+BCU1 bcu = BCU1();
+
+enum SystemSpeed {mhz12, mhz24, mhz36, mhz48};  //!< SystemCoreClock in MHz
 
 /**
  * The pin that is used for this example, see sblib/io_pin_names.h for other options
@@ -81,21 +80,21 @@ int testPin = PIO0_7;
 // int testPin = PIN_RUN;
 // int testPin = PIN_INFO;
 
-///< bit mask to set the test pin high
-int mask = digitalPinToBitMask(testPin);
-
-///< direct access to the gpioPort of the test pin
-LPC_GPIO_TypeDef* port = gpioPorts[digitalPinToPort(testPin)];
+int mask = digitalPinToBitMask(testPin);                        //!< bit mask to set the test pin high
+LPC_GPIO_TypeDef* port = gpioPorts[digitalPinToPort(testPin)];  //!< direct access to the gpioPort of the test pin
 
 /**
  * @fn void connectSystemOscillatorToClkOutPin()
- * @brief Connect the system oscillator to clock-out pin (PIO0.1)
- *        This allows measurement with oscilloscope.
+ * @brief !!!!!!!!!! USE WITH CAUTION !!!!!!!!!!
+ *        Connect the system oscillator to clock-out pin (PIO0.1)
+ *        This allows measurement of the system clock with oscilloscope.
  *
- *        USE WITH CAUTION !
  *        Trying to debug may run into error 'Ee(42). Could not connect to core.'.
  *        This is due to CLKOUT and ISP_Enable share the same pin.
- *        Use Flashmagic to restore the LPC.
+ *
+ *        You can restore the LPC with an ISP programmer/debugger
+ *        with ISP_Enable support (e.g. Selfbus USB Programmer)
+ *        by deleting/overwriting the clk-out program."
  */
 void connectSystemOscillatorToClkOutPin()
 {
@@ -150,17 +149,13 @@ void setSystemSpeed(SystemSpeed newSystemSpeed)
 /**
  * Initialize the application.
  */
-void setup()
+BcuBase* setup()
 {
     pinMode(testPin, OUTPUT);
 
     // test different SystemCoreClocks
     // setSystemSpeed(mhz48);
-
-    // Connect the system oscillator to clock-out pin (PIO0.1)
-    // This allows measurement with oscilloscope.
-    // USE WITH CAUTION !
-    // connectSystemOscillatorToClkOutPin();
+    return (&bcu);
 }
 
 /**
@@ -168,34 +163,69 @@ void setup()
  */
 void test_delayMicroseconds(void)
 {
-    unsigned int microSecondToTest = START_MICROSECOND_TO_TEST;
+    unsigned int microSecondToTest = TEST_MICROSECOND_START;
 
-    while (microSecondToTest <= END_MICROSECOND_TO_TEST)
+    while (microSecondToTest <= TEST_MICROSECOND_END)
     {
-        SET_TESTPIN_LOW; // same as port->MASKED_ACCESS[mask] = 0;
-        delayMicroseconds(microSecondToTest);
-        SET_TESTPIN_HIGH; // same as port->MASKED_ACCESS[mask] = mask;
-        delayMicroseconds(microSecondToTest);
-
-        delay(TEST_PAUSE);
-
-        if (microSecondToTest >= SPEEDUP_1_MICROSECOND_TO_TEST)
+        for (int i = 0; i < TEST_COUNT; i++)
         {
-            int exponent = floor(log10(microSecondToTest));
-            if (microSecondToTest < SPEEDUP_2_MICROSECOND_TO_TEST)
+            SET_TESTPIN_LOW; // same as port->MASKED_ACCESS[mask] = 0;
+            delayMicroseconds(microSecondToTest);
+            SET_TESTPIN_HIGH; // same as port->MASKED_ACCESS[mask] = mask;
+            delayMicroseconds(microSecondToTest);
+        }
+
+        if (microSecondToTest >= TEST_SPEEDUP_1)
+        {
+            int exponent = log10f(microSecondToTest);
+            if (microSecondToTest < TEST_SPEEDUP_2)
             {
                 exponent--;
             }
-            int speedup = pow(10, exponent);
-            microSecondToTest += speedup;
+            microSecondToTest += powf(10, exponent);
         }
         else
         {
             microSecondToTest++;
         }
+        delay(TEST_PAUSE);
     }
 }
 
+/**
+ * Test of delay() method.
+ */
+void test_delay(void)
+{
+    unsigned int milliSecondToTest = TEST_MILLISECOND_START;
+
+    while (milliSecondToTest <= TEST_MILLISECOND_END)
+    {
+        for (int i = 0; i < TEST_COUNT; i++)
+        {
+            SET_TESTPIN_LOW; // same as port->MASKED_ACCESS[mask] = 0;
+            delay(milliSecondToTest);
+            SET_TESTPIN_HIGH; // same as port->MASKED_ACCESS[mask] = mask;
+            delay(milliSecondToTest);
+        }
+
+        if (milliSecondToTest >= TEST_SPEEDUP_1)
+        {
+            int exponent = log10f(milliSecondToTest);
+            if (milliSecondToTest < TEST_SPEEDUP_2)
+            {
+                exponent--;
+            }
+            int speedup = powf(10, exponent);
+            milliSecondToTest += speedup;
+        }
+        else
+        {
+            milliSecondToTest++;
+        }
+        delay(TEST_PAUSE);
+    }
+}
 /**
  * Test of macro DELAY_USEC_HIGH_PRECISION(usec) method.
  * works only with cpu @48MHz
@@ -259,6 +289,7 @@ void test_old_delayMicroseconds(void)
 void loop_noapp()
 {
     test_delayMicroseconds();
+    // test_delay();
     // test_delayUSecHighPrecision();
     // test_old_delayMicroseconds(); //uncomment to use the old testing method
 }
@@ -270,3 +301,4 @@ void loop()
 {
     // will never be called in this example
 }
+/** @}*/

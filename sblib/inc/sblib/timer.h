@@ -33,23 +33,18 @@ void delay(unsigned int msec);
 /**
  * The number of maximal Microseconds possible for delay by delayMicroseconds().
  */
-#define MAX_DELAY_MICROSECONDS ((unsigned int)((INT_MAX * 1000000.0 / SystemCoreClock) + MIN_DELAY_MICROSECONDS))
+#define MAX_DELAY_MICROSECONDS (4000)
 
 /**
  * The number of maximal Milliseconds possible for delay by delayMicroseconds().
  */
-#define MAX_DELAY_MILLISECONDS ((unsigned int)(MAX_DELAY_MICROSECONDS /1000))
-
-/**
- * The limit of Microseconds delayMicroseconds() will use the faster calculation.
- */
-#define PROCESS_FAST_DELAY_MILLISECONDS 50
+#define MAX_DELAY_MILLISECONDS (MAX_DELAY_MICROSECONDS / 1000)
 
 /**
  * Delay the program execution a number of microseconds. You should use delay() when
  * possible, as this function does a busy wait which consumes more power than delay().
  * The minimum delay is MIN_DELAY_MICROSECONDS ~3μs. Everything below will result in a ~3μs delay.
- * The maximum delay is MAX_DELAY_MICROSECONDS ~44s. Everything above will result in a ~44s delay.
+ * The maximum delay is MAX_DELAY_MICROSECONDS 4ms. Everything above will result in a fatalError().
  *
  * Do not expect high accuracy, as the function can be interrupted at any time.
  * The function is optimized for a SystemCoreClock of 48MHz
@@ -72,7 +67,7 @@ unsigned int millis();
  * Get the number of milliseconds that elapsed since the reference time.
  *
  * @param ref - the reference time to compare with
- * @return The numer of milliseconds since time.
+ * @return The number of milliseconds since time.
  */
 unsigned int elapsed(unsigned int ref);
 
@@ -475,6 +470,12 @@ public:
      */
     bool getMatchChannelLevel(int channel);
 
+    /**
+     * Set interrupt priority for the associated hardware timer
+     *
+     * @param newPriority - new interrupt priority for the timer
+     */
+    void setIRQPriority(uint32_t newPriority);
 
 protected:
 	LPC_TMR_TypeDef* timer;
